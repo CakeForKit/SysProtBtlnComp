@@ -20,6 +20,8 @@ func main() {
 		log.Fatal("Ошибка открытия файла логов:", err)
 	}
 	defer logFile.Close()
+	logger := log.New(logFile, "", 0)
+	// logger := log.New(os.Stdout, "", 0)
 	// ----------
 
 	// Config
@@ -27,16 +29,11 @@ func main() {
 	if err != nil {
 		fmt.Printf("ERR %v\n", err)
 	}
-	fmt.Printf("%+v\n", raceConfig)
 	// -----------
 
-	logger := log.New(logFile, "", 0)
-	// timestamp := time.Now().Format("15:04:05.000")
-	// id := 1
-	// logger.Printf("[%s] The competitor(%d) registered", timestamp, id)
 	raceServ, err := eventserv.NewEventService(logger, raceConfig)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 	}
-	raceServ.CreateReport("input_data/test")
+	raceServ.CreateReport("input_data/events")
 }
