@@ -2,14 +2,33 @@ package models
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/CakeForKit/SysProtBtlnComp.git/internal/cnfg"
 )
 
+var (
+	eventComments = map[int]string{
+		1:  "[%s] The competitor(%d) registered",
+		2:  "[%s] The start time for the competitor(%d) was set by a draw to %s",
+		3:  "[%s] The competitor(%d) is on the start line",
+		4:  "[%s] The competitor(%d) has started",
+		5:  "[%s] The competitor(%d) is on the firing range(%d)",
+		6:  "[%s] The target(%d) has been hit by competitor(%d)",
+		7:  "[%s] The competitor(%d) left the firing range",
+		8:  "[%s] The competitor(%d) entered the penalty laps",
+		9:  "[%s] The competitor(%d) left the penalty laps",
+		10: "[%s] The competitor(%d) ended the main lap",
+		11: "[%s] The competitor(%d) can't continue: %s",
+		32: "[%s] The competitor(%d) is disqualified",
+		33: "[%s] The competitor(%d) has finished",
+	}
+)
+
 type Competitor interface {
-	AddEvent(event Event, raceCnfg *cnfg.RaceConfig) error
+	AddEvent(event Event, raceCnfg *cnfg.RaceConfig, logger *log.Logger) error
 	GetEvents() []Event
 	GetStatistic(raceCnfg *cnfg.RaceConfig) (string, error)
 	GetTotalTime() time.Duration
@@ -55,7 +74,7 @@ type competitor struct {
 	timeEachLap          []time.Duration
 }
 
-func (c *competitor) AddEvent(event Event, raceCnfg *cnfg.RaceConfig) error {
+func (c *competitor) AddEvent(event Event, raceCnfg *cnfg.RaceConfig, logger *log.Logger) error {
 	if c.status != "" {
 		return fmt.Errorf("already out of competition")
 	}
@@ -114,10 +133,29 @@ func (c *competitor) AddEvent(event Event, raceCnfg *cnfg.RaceConfig) error {
 		timeLap := event.GetTimestamp().Sub(c.startTimeCurLap)
 		c.timeEachLap = append(c.timeEachLap, timeLap)
 		c.startTimeCurLap = event.GetTimestamp()
+		if len(c.timeEachLap) == raceCnfg.Laps {
+			newEvent, err := NewSimpleEvent(event.GetTimestamp(), 33)
+			if err != nil {
+				return fmt.Errorf("error NewSimpleEvent")
+			}
+			logger.Printf("%s\n", c.createComment(c.id, event))
+			logger.Printf("%s\n", c.createComment(c.id, newEvent))
+			return nil
+		}
 	case 11: // The competitor can`t continue
 		c.status = "NotFinished"
+		newEvent, err := NewSimpleEvent(event.GetTimestamp(), 32)
+		if err != nil {
+			return fmt.Errorf("error NewSimpleEvent")
+		}
+		c.events = append(c.events, event)
+		c.events = append(c.events, newEvent)
+		logger.Printf("%s\n", c.createComment(c.id, event))
+		logger.Printf("%s\n", c.createComment(c.id, newEvent))
+		return nil
 	}
 	c.events = append(c.events, event)
+	logger.Printf("%s\n", c.createComment(c.id, event))
 	return nil
 }
 
@@ -166,4 +204,21 @@ func (c *competitor) GetStatistic(raceCnfg *cnfg.RaceConfig) (string, error) {
 		avgSpeedPenaltyLaps,
 		c.hits, shots)
 	return statText, nil
+}
+
+func (c *competitor) createComment(competitorID int, event Event) string {
+	id := event.GetID()
+	timestamp := event.GetTimestamp().Format("15:04:05.000")
+	switch id {
+	case 2:
+		return fmt.Sprintf(eventComments[id], timestamp, competitorID, event.GetStartTime().Format("15:04:05.000"))
+	case 5:
+		return fmt.Sprintf(eventComments[id], timestamp, competitorID, event.GetNumber())
+	case 6:
+		return fmt.Sprintf(eventComments[id], timestamp, event.GetNumber(), competitorID)
+	case 11:
+		return fmt.Sprintf(eventComments[id], timestamp, competitorID, event.GetComment())
+	default:
+		return fmt.Sprintf(eventComments[id], timestamp, competitorID)
+	}
 }

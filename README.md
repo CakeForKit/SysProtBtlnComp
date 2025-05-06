@@ -1,3 +1,13 @@
+# Run
+```bash
+cd deployment/
+docker-compose up --build
+```
+# Results
+**Log:** log/log.log 
+
+**Report:** log/result
+
 # System prototype for biathlon competitions
 The prototype must be able to work with a configuration file and a set of external events of a certain format.
 Solution should contain golang (1.20 or newer) source file/files and unit tests (optional)
